@@ -1,0 +1,26 @@
+{
+  "name": "tanda-ping",
+  "version": "1.0.0",
+  "description": "Tand Internship Code Challenge - Ping Backend",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/billy-7/tanda-ping.git"
+  },
+  "author": "Billy Schulze <billyschulze97@gmail.com>",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/billy-7/tanda-ping/issues"
+  },
+  "homepage": "https://github.com/billy-7/tanda-ping#readme",
+  "dependencies": {
+    "dotenv": "^2.0.0",
+    "express": "^4.14.0",
+    "moment": "^2.15.1",
+    "mongoose": "^4.6.3",
+    "morgan": "^1.7.0"
+  }
+}

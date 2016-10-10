@@ -35,3 +35,9 @@ jspm_packages
 
 # Optional REPL history
 .node_repl_history
+
+# env config file
+.env
+
+# webstorm project files
+.idea/
