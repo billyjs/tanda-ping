@@ -1,6 +1,20 @@
 # tanda-ping
 Tanda Internship Code Challenge - Ping Backend
 
+## about
+
+To complete this project I decided to use;
+- `node + express` for the server as they allow simple and powerful creation of api servers,
+- `mongodb` for the database as a relational database is overkill for this api with only a single entity and mongodb works well with `node`.
+
+This stack was used as together they are commonly used for running simple api servers and setup and use is very straightforward.
+
+Other depencies for this project are;
+- `dotenv` for server configuration files,
+- `moment.js` for handling/parsing dates and unix times,
+- `mongoose` for easy connection to the mongodb server,
+- `morgan` for server logging.
+
 ## steps to build
 
 - install node & npm `sudo apt install nodejs`
