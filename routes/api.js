@@ -1,162 +1,158 @@
+"use strict";
 var express = require('express');
-var router = express.Router();
-var mongoose = require('mongoose');
 var moment = require('moment');
+var router = express.Router();
 
 var Device = require('../models/device');
 
-router.get('/devices', function (req, res) {
-    getDevices(function (response) {
+// respond with a list of all device_id's
+router.get('/devices', (req, res) => {
+    getDevices((response) => {
         res.json(response);
     });
 });
 
-router.get('/:device_id/:date', function (req, res) {
-    var start = getStartEpoch(req.params.date);
-    var end = getEndEpoch(req.params.date);
-    getTimes(req.params.device_id, start, end, function (response) {
-        if (response) {
-            res.json(response);
-        } else {
-            res.sendStatus(400);
-        }
+// respond with a list of all pings from :device_id on :date,
+// if :device_id == 'all' then respond with a list of all pings from all device_id's on :date
+router.get('/:device_id/:date', (req, res) => {
+    let start = moment.utc(req.params.date, "YYYY-MM-DD", true).valueOf();
+    let end = moment.utc(req.params.date, "YYYY-MM-DD", true).add(1, 'days').valueOf();
+    getResponse(req.params.device_id, start, end, (response) => {
+        response ? res.json(response) : res.sendStatus(400);
     })
 });
 
-router.get('/:device_id/:from/:to', function (req, res) {
-    var start = getEpoch(req.params.from);
-    var end = getEpoch(req.params.to);
-    getTimes(req.params.device_id, start, end, function (response) {
-        if (response) {
-            res.json(response);
-        } else {
-            res.sendStatus(400);
-        }
+// respond with a list of all pings from :device_id between :from and :to,
+// if :device_id == 'all' then respond with a list of all pings from all device_id's between :from and :to
+router.get('/:device_id/:from/:to', (req, res) => {
+    let start = moment.utc(req.params.from, "YYYY-MM-DD", true).valueOf() ||
+        moment.unix(req.params.from).valueOf();
+    let end = moment.utc(req.params.to, "YYYY-MM-DD", true).add(1, 'days').valueOf() ||
+        moment.unix(req.params.to).valueOf();
+    getResponse(req.params.device_id, start, end, (response) => {
+        response ? res.json(response) : res.sendStatus(400);
     })
 });
 
-router.post('/clear_data', function (req, res) {
-    Device.remove({}, function () {
+// empty the database of all data
+router.post('/clear_data', (req, res) => {
+    Device.remove({}, () => {
         res.sendStatus(200);
     });
 });
 
-router.post('/:device_id/:epoch_time', function (req, res) {
-    var time = moment.unix(req.params.epoch_time).valueOf();
+// add a ping for :epoch_time to the database,
+// if :device_id not already in database create it then add the ping
+router.post('/:device_id/:epoch_time', (req, res) => {
+    let time = moment.unix(req.params.epoch_time).valueOf();
     if (!time) {
         res.statusCode(400);
     } else {
-        addPing(req.params.device_id, time, function () {
+        postPing(req.params.device_id, time, () => {
             res.sendStatus(200);
         });
     }
 });
 
-function getTimes(device_id, start, end, callback) {
+// choose whether to get pings from all devices are pings from a single device
+function getResponse(device_id, start, end, callback) {
     if (!start || !end) {
-        callback(null);
+        callback();
     } else if (device_id == 'all') {
-        getAllTimes(start, end, function (response) {
+        getAllPings(start, end, (response) => {
             callback(response);
         })
     } else {
-        getSpecificTime(device_id, start, end, function (response) {
+        getPings(device_id, start, end, (response) => {
             callback(response);
         })
     }
 }
 
+// get a list of all devices
 function getDevices(callback) {
-    Device.find({}, function (err, devices) {
+    Device.find({}, (err, devices) => {
         if (err) throw err;
-        var response = [];
-        for (var i = 0; i < devices.length; i++) {
+        let response = [];
+        for (let i = 0; i < devices.length; i++) {
             response.push(devices[i].device_id);
         }
         callback(response);
     });
 }
 
-function getStartEpoch(date) {
-    return moment.utc(date, "YYYY-MM-DD", true).valueOf();
-}
-
-function getEndEpoch(date) {
-    return moment.utc(date, "YYYY-MM-DD", true).add(1, 'days').valueOf();
-}
-
-function getEpoch(time) {
-    return moment.utc(time, "YYYY-MM-DD", true).valueOf() || moment.unix(time).valueOf();
-}
-
-function getSpecificTime(device_id, start, end, callback) {
-    Device.findOne({'device_id': device_id}, function (err, device) {
+// get a list of all the pings from device_id between start and end
+function getPings(device_id, start, end, callback) {
+    Device.findOne({'device_id': device_id}, (err, device) => {
         if (err) throw err;
-        if (!device) {
-            callback([]);
-        } else {
-            callback(getDeviceTimes(device, start, end));
-        }
+        device ? callback(getPingsInRange(device, start, end)): callback([]);
     })
 }
 
-function getAllTimes(start, end, callback) {
-    Device.find({}, function (err, devices) {
+// for each device get a list of all pings between start and end and add it to a response object
+function getAllPings(start, end, callback) {
+    Device.find({}, (err, devices) => {
         if (err) throw err;
-        var response = {};
-        for (var i = 0; i < devices.length; i++) {
-            response[devices[i].device_id] = getDeviceTimes(devices[i], start, end);
+        let response = {};
+        for (let i = 0; i < devices.length; i++) {
+            response[devices[i].device_id] = getPingsInRange(devices[i], start, end);
         }
         callback(response);
     });
 }
 
-function getDeviceTimes(device, from, to) {
-    var epoch_times = device.epoch_times.sort();
-    var counter = 0;
-    while (epoch_times[counter] && epoch_times[counter] < from) {
+// get a list of pings from device between start and end
+// NOTE: probably could be improved for better efficiency
+function getPingsInRange(device, start, end) {
+    let epoch_times = device.epoch_times.sort();
+    let counter = 0;
+    while (epoch_times[counter] && epoch_times[counter] < start) {
         counter++;
     }
     epoch_times.splice(0, counter);
     counter = 0;
-    var len = epoch_times.length;
-    while (epoch_times[len - counter - 1] && epoch_times[len - counter - 1] >= to) {
+    let len = epoch_times.length;
+    while (epoch_times[len - counter - 1] && epoch_times[len - counter - 1] >= end) {
         counter++;
     }
     epoch_times.splice(len - counter, counter);
     return epoch_times;
 }
 
-
-function addPing(device_id, time, callback) {
-    Device.findOne({'device_id': device_id}, function (err, device) {
+// add a ping to a device, if device is not already in database create it first
+function postPing(device_id, time, callback) {
+    Device.findOne({'device_id': device_id}, (err, device) => {
         if (err) throw err;
-        if (device) {
-            addEpochTime(device, time);
-        } else {
-            createNewDevice(device_id, time);
-        }
+        device ? addPing(device, time) : newDevice(device_id, time);
         callback()
     });
 }
 
-function createNewDevice(device_id, epoch_time) {
-    var device = new Device({
+// create a new device in the database
+function newDevice(device_id, epoch_time) {
+    let device = new Device({
         'device_id': device_id,
         epoch_times: [epoch_time]
     });
-    device.save(function (err) {
+    device.save((err) => {
+        // if failed to create new device because of uniqueness failed,
+        // just add a new ping to that device.
+        // this only occurs when multiple posts to the server of the same,
+        // new device are received at approximately the same time
         if (err && err.code == 11000) {
-            Device.findOne({'device_id': device_id}, function (err, duplicate) {
-                addEpochTime(duplicate, epoch_time);
+            Device.findOne({'device_id': device_id}, (err, duplicate) => {
+                addPing(duplicate, epoch_time);
             })
+        } else if (err) {
+            throw err;
         }
     })
 }
 
-function addEpochTime(device, epoch_time) {
+// add a ping to an existing device
+function addPing(device, epoch_time) {
     device.epoch_times.push(epoch_time);
-    device.save(function (err) {
+    device.save((err) => {
         if (err) throw err;
     });
 }
