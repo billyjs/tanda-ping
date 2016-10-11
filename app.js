@@ -44,12 +44,12 @@ function onServerError(error) {
     }
     switch (error.code) {
         case 'EACCES':
-            console.err('Port ' + port + ' requires elevated privileges');
-            console.exit(1);
+            console.error('Port ' + port + ' requires elevated privileges');
+            process.exit(1);
             break;
         case 'EADDRINUSE':
-            console.err('Port ' + port + ' is already in use');
-            console.exit(1);
+            console.error('Port ' + port + ' is already in use');
+            process.exit(1);
             break;
         default:
             throw error;
